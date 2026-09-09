@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- File version: 1 — v2: extends the rollercoaster with real LoomScript loops -->
+<!-- File version: 2 — added momentum/stall test after the loop (climb slider), same real energy conservation from v1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -194,6 +194,11 @@ h1,h2,h3{font-family:var(--display); font-weight:600; line-height:1.25;}
             <label>Starting height: 90m (fixed)</label>
           </div>
           <div class="sliderRow">
+            <label>After the loop, climb back up by: <b id="loopClimbValue">30</b>m</label>
+            <input type="range" id="loopClimb" min="10" max="70" value="30">
+          </div>
+          <div class="stepHint" style="margin:-4px 0 10px; font-size:12px; color:var(--paper-dim);">This is the same real momentum rule from the warm-up — the loop only builds speed by dropping; if you ask it to climb back up more than that speed allows, it genuinely can't, no matter what the block says.</div>
+          <div class="sliderRow">
             <label>Declared engine: <b id="sbEngineValue">physics</b> (try picking a wrong one)</label>
             <select id="sbEngineSelect" style="width:100%; background:var(--ink-3); border:1px solid var(--ink-4); color:var(--paper); padding:8px; border-radius:7px; font-family:var(--mono);">
               <option value="physics">physics (correct)</option>
@@ -238,6 +243,7 @@ h1,h2,h3{font-family:var(--display); font-weight:600; line-height:1.25;}
 }</div>
     <p>Compare that to what you did in the warm-up: four separate blocks, four separate numbers, no way to scale it up without dragging in a fifth, sixth, seventh block by hand. The loop version doesn't just save typing — it means the SHAPE of the track (how many points, how steep) becomes something you can control with two numbers instead of rebuilding the whole thing block by block. That's what you just did in the playground.</p>
     <p>Underneath, every point still runs the exact same real physics as before — <code>trackPoint()</code> still calls the real formula (<strong>new speed² = old speed² + 2 × gravity × (old height − new height)</strong>) every single time the loop calls it, five times over, not once. The loop changes how many times the formula runs and with what numbers — it never changes what the formula actually does.</p>
+    <p>That last point in the playground — climbing back up after the loop — is the same energy-conservation rule from the very first rollercoaster, just reached a different way. The loop's only job was to drop and build speed; the climb afterward spends that speed, and if you ask for more climb than the drop actually earned, it genuinely fails, mid-ride, at whatever height the speed ran out. Not because a rule says "don't climb too much" — because <code>trackPoint()</code> is running the real arithmetic and the numbers simply don't allow it.</p>
     <p>One more thing worth noticing: every script here still started with <code>@engine: physics</code> — a genuine, checked declaration, not decoration. Try the sandbox's engine dropdown with something other than "physics" and press Run: it won't silently do nothing, it'll tell you exactly why <code>trackPoint()</code> doesn't belong there. This is a prototype — most LoomSTEM programs don't have this line yet — but it's how a real, deliberately-declared engine boundary would work, loops or no loops.</p>
     <div class="ctaRow">
       <button class="runBtn ghost" id="restartBtn">↻ Try it again</button>
@@ -870,7 +876,7 @@ document.getElementById('continueBtn').addEventListener('click', ()=>{
 function enterSandbox(){
   renderProgress();
   document.getElementById('stepLabel').textContent = 'Step 7 of 7';
-  document.getElementById('stepText').textContent = "Now change the loop itself. Same three lines you just built — only the number of iterations and the height drop are yours to control. Watch how much one small change to the loop cascades into a completely different track.";
+  document.getElementById('stepText').textContent = "Now change the loop itself. Same three lines you just built — the number of iterations and the height drop are yours to control. There's a third control too: how far to climb back up once the loop finishes, using nothing but the speed it already built. Push that too far and watch it genuinely fail to make it.";
   document.getElementById('paletteZone').classList.add('hidden');
   document.getElementById('dropzone').classList.add('hidden');
   switchDemoTab('result');
@@ -890,6 +896,9 @@ document.getElementById('loopIterations').addEventListener('input', (e)=>{
 document.getElementById('loopStep').addEventListener('input', (e)=>{
   document.getElementById('loopStepValue').textContent = e.target.value;
 });
+document.getElementById('loopClimb').addEventListener('input', (e)=>{
+  document.getElementById('loopClimbValue').textContent = e.target.value;
+});
 
 document.getElementById('sandboxRunBtn').addEventListener('click', async ()=>{
   const btn = document.getElementById('sandboxRunBtn');
@@ -900,8 +909,9 @@ document.getElementById('sandboxRunBtn').addEventListener('click', async ()=>{
 
   const iterations = Number(document.getElementById('loopIterations').value);
   const step = Number(document.getElementById('loopStep').value);
+  const climb = Number(document.getElementById('loopClimb').value);
   const declaredEngine = document.getElementById('sbEngineSelect').value;
-  const source = `@engine: ${declaredEngine}\non start:\nset gravity = 9.8\nset height = 90\nrepeat ${iterations} times {\ntrackPoint(height)\nheight = height - ${step}\n}`;
+  const source = `@engine: ${declaredEngine}\non start:\nset gravity = 9.8\nset height = 90\nrepeat ${iterations} times {\ntrackPoint(height)\nheight = height - ${step}\n}\ntrackPoint(height + ${climb})`;
 
   document.getElementById('codeRevealText').textContent = source;
   switchDemoTab('result');
@@ -910,12 +920,12 @@ document.getElementById('sandboxRunBtn').addEventListener('click', async ()=>{
   msg.textContent = engineError
     ? `⚠ ${engineError}`
     : stalled
-    ? `Stalled — the cart didn't have enough speed left to reach ${stalledHeight}m. That's real energy conservation: you can't climb higher than your speed allows, no matter what the loop says.`
+    ? `Stalled at ${stalledHeight}m — the loop's ${iterations}-point drop didn't build up enough speed for a ${climb}m climb afterward. Try a smaller climb, or a bigger drop per point.`
     : thrill > 55
-    ? `Ride rating: ${rideRating(thrill)}/100 — too intense. ${iterations} points, one loop, one change to "height drop" made it too much.`
+    ? `Ride rating: ${rideRating(thrill)}/100 — too intense, but it made it. ${iterations} points from a loop, then a real ${climb}m climb using nothing but the speed that loop built up.`
     : thrill < 12
-    ? `Ride rating: ${rideRating(thrill)}/100 — a bit tame. Try a bigger height drop, or more points.`
-    : `Ride rating: ${rideRating(thrill)}/100 — thrilling and safe. ${iterations} real points, generated by a 3-line loop — try changing either slider and running again.`;
+    ? `Ride rating: ${rideRating(thrill)}/100 — a bit tame. Try a bigger height drop, more points, or a bigger climb.`
+    : `Ride rating: ${rideRating(thrill)}/100 — thrilling and safe. The ${climb}m climb succeeded because the loop's drop gave it exactly enough real speed for it — not because the block said so.`;
   btn.disabled = false;
 });
 
